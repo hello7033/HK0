@@ -4,14 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>香港旅遊行程表 - 極簡金箔版</title>
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <!-- Tailwind CSS & FontAwesome & SortableJS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Playfair+Display:ital,wght@0,700;1,700&display=swap');
         
@@ -82,13 +80,14 @@
                             class="w-full bg-white/50 border border-slate-100 rounded-3xl py-5 px-6 text-xl focus:outline-none focus:border-yellow-300 text-center tracking-[0.3em] shadow-inner">
                     </div>
                     
-                    <button @click="joinRoom" :disabled="!roomInput"
-                        class="w-full py-5 bg-slate-900 text-white rounded-3xl text-[12px] font-bold uppercase tracking-widest disabled:opacity-20 hover:bg-slate-800 transition-all shadow-xl hover:shadow-yellow-200/50">
-                        Enter Journey →
+                    <button @click="joinRoom" :disabled="!roomInput || connecting"
+                        class="w-full py-5 bg-slate-900 text-white rounded-3xl text-[12px] font-bold uppercase tracking-widest disabled:opacity-30 hover:bg-slate-800 transition-all shadow-xl hover:shadow-yellow-200/50 flex items-center justify-center gap-2">
+                        <i v-if="connecting" class="fa-solid fa-spinner animate-spin"></i>
+                        <span>{{ connecting ? 'CONNECTING...' : 'Enter Journey →' }}</span>
                     </button>
                 </div>
 
-                <p class="text-[10px] text-slate-300 font-medium">Please enter your private code to view the itinerary.</p>
+                <p class="text-[10px] text-slate-400 font-medium">輸入相同的房間暗號即可跨裝置共同編輯</p>
             </div>
         </div>
 
@@ -106,11 +105,11 @@
                         
                         <!-- 🌤️ 香港天氣與降雨顯示 -->
                         <div class="flex items-center gap-3 text-[11px] font-bold mt-3">
-                            <div class="flex items-center gap-1.5 bg-yellow-50 px-2 py-1 rounded-full text-yellow-700">
+                            <div class="flex items-center gap-1.5 bg-yellow-50 px-2.5 py-1 rounded-full text-yellow-700">
                                 <i class="fa-solid fa-location-dot"></i>
                                 <span>Hong Kong</span>
                             </div>
-                            <div v-if="weather" class="flex items-center gap-3 text-slate-400">
+                            <div v-if="weather" class="flex items-center gap-3 text-slate-500">
                                 <span class="flex items-center gap-1">
                                     <i class="fa-solid fa-temperature-half text-orange-400"></i>
                                     {{ weather.temp }}°C
@@ -131,7 +130,7 @@
                         <div class="text-[9px] font-bold uppercase tracking-tighter flex items-center gap-1.5">
                             <span class="text-slate-400">🔑 {{ roomDisplay }}</span>
                             <span :class="syncError ? 'text-red-500 font-bold' : (saving ? 'text-amber-500 animate-pulse' : 'text-emerald-500')">
-                                {{ syncError ? syncError : (saving ? '● Syncing...' : '● Live') }}
+                                {{ syncError ? syncError : (saving ? '● Syncing...' : '● Live Sync') }}
                             </span>
                         </div>
                     </div>
@@ -139,7 +138,6 @@
             </header>
 
             <main class="max-w-4xl mx-auto p-6 mt-8 space-y-8">
-                <!-- 匯率轉換工具 (已移除澳幣，僅留港幣與台幣) -->
                 <div class="glass-panel p-8 rounded-[2.5rem] grid grid-cols-2 gap-6">
                     <div v-for="curr in ['hkd', 'twd']" :key="curr" class="text-center">
                         <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">
@@ -164,8 +162,8 @@
                         </div>
                     </div>
                     <div class="flex gap-2">
-                        <button @click="addDay" class="w-10 h-10 shrink-0 bg-white border border-yellow-200 text-yellow-600 rounded-full hover:bg-yellow-50 shadow-sm flex items-center justify-center">+</button>
-                        <button v-if="config.days && config.days.length > 1" @click="removeLastDay" class="w-10 h-10 shrink-0 bg-white border border-yellow-200 text-slate-300 rounded-full hover:text-red-400 shadow-sm flex items-center justify-center">-</button>
+                        <button @click="addDay" class="w-10 h-10 shrink-0 bg-white border border-yellow-200 text-yellow-600 rounded-full hover:bg-yellow-50 shadow-sm flex items-center justify-center font-bold text-lg">+</button>
+                        <button v-if="config.days && config.days.length > 1" @click="removeLastDay" class="w-10 h-10 shrink-0 bg-white border border-yellow-200 text-slate-300 rounded-full hover:text-red-400 shadow-sm flex items-center justify-center font-bold text-lg">-</button>
                     </div>
                 </div>
 
@@ -179,7 +177,7 @@
                         <div @click="openEdit(event)" class="flex-1 glass-panel p-6 rounded-[2.2rem] relative cursor-pointer hover:shadow-2xl hover:scale-[1.01] transition-all border-l-4 border-l-yellow-500">
                             <div class="flex justify-between items-start">
                                 <h3 class="text-xl font-bold text-slate-800">{{ event.location || '未命名地點' }}</h3>
-                                <button @click.stop="removeEvent(event.id)" class="text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2">
+                                <button @click.stop="removeEvent(event.id)" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2">
                                     <i class="fas fa-trash text-xs"></i>
                                 </button>
                             </div>
@@ -200,7 +198,7 @@
                         </div>
                     </div>
                     
-                    <button @click="openAdd" class="w-full py-10 border-2 border-dashed border-yellow-200 rounded-[2.5rem] text-yellow-600/30 font-bold hover:bg-yellow-50/50 transition-all uppercase text-[10px] tracking-[0.3em]">
+                    <button @click="openAdd" class="w-full py-10 border-2 border-dashed border-yellow-200 rounded-[2.5rem] text-yellow-600/50 font-bold hover:bg-yellow-50/50 transition-all uppercase text-[10px] tracking-[0.3em]">
                         + {{ lang === 'zh' ? '新增行程' : 'ADD NEW ENTRY' }}
                     </button>
                 </div>
@@ -257,20 +255,27 @@
         </div>
     </div>
 
-    <script>
-        const { createApp, ref, computed, onMounted, nextTick } = Vue;
+    <script type="module">
+        import { createApp, ref, computed, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyDummyKeyForFirebaseCompatSDK12345", 
-            authDomain: "sakura-db2eb.firebaseapp.com",
-            databaseURL: "https://sakura-db2eb-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "sakura-db2eb",
-            appId: "1:1018635903034:web:b9cff8697598f66be55503"
-        };
+        // 動態使用平台的標準 Firebase 設定與憑證
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : {
+                apiKey: "AIzaSyDummyKeyForFirebaseCompatSDK12345", 
+                authDomain: "sakura-db2eb.firebaseapp.com",
+                projectId: "sakura-db2eb",
+                storageBucket: "sakura-db2eb.appspot.com"
+            };
 
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-        const auth = firebase.auth();
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'hk-voyage-app';
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
         createApp({
             setup() {
@@ -284,8 +289,10 @@
                 const showModal = ref(false);
                 const editingId = ref(null);
                 const saving = ref(false);
+                const connecting = ref(false);
                 const weather = ref(null);
                 let sortableInstance = null;
+                let unsubscribeRoom = null;
 
                 const config = ref({ 
                     title: 'HONG KONG VOYAGE', 
@@ -302,24 +309,34 @@
                     const cleanRoom = roomInput.value.trim().toLowerCase();
                     if (!cleanRoom) return;
 
+                    connecting.value = true;
+                    syncError.value = '';
+
                     try {
-                        if (!auth.currentUser) {
-                            await auth.signInAnonymously();
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
                         }
                     } catch (err) {
-                        console.warn('Auth notice:', err);
+                        console.warn('Auth notification:', err);
                     }
 
                     roomDisplay.value = cleanRoom;
-                    roomKey.value = `room_${cleanRoom}`;
+                    roomKey.value = cleanRoom;
                     roomJoined.value = true;
-                    syncError.value = '';
+                    connecting.value = false;
                     
-                    const dbRef = db.ref(`rooms/${roomKey.value}`);
-                    dbRef.on('value', (snapshot) => {
-                        const data = snapshot.val();
-                        if (data) {
-                            events.value = data.events ? Object.values(data.events) : [];
+                    // 符合嚴格的 Firestore 路徑規範：/artifacts/{appId}/public/data/rooms/{roomId}
+                    const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomKey.value);
+
+                    if (unsubscribeRoom) unsubscribeRoom();
+
+                    unsubscribeRoom = onSnapshot(roomDocRef, (docSnap) => {
+                        saving.value = false;
+                        if (docSnap.exists()) {
+                            const data = docSnap.data();
+                            events.value = data.events || [];
                             if (data.config) {
                                 config.value = data.config;
                                 if (!config.value.days || config.value.days.length === 0) {
@@ -330,12 +347,14 @@
                                 }
                             }
                         } else {
-                            events.value = [];
+                            // 資料庫尚未有該房間時自動初始化
+                            saveToCloud();
                         }
                         nextTick(() => initSortable());
                     }, (err) => {
-                        console.error('Firebase DB listen error:', err);
-                        syncError.value = '連線失敗(請檢查權限/網路)';
+                        saving.value = false;
+                        console.error('Firestore snapshot listener error:', err);
+                        syncError.value = '同步連線中斷';
                     });
 
                     fetchRates();
@@ -343,18 +362,17 @@
                 };
 
                 const saveToCloud = async () => {
-                    if (!roomKey.value) return;
+                    if (!roomKey.value || !auth.currentUser) return;
                     saving.value = true;
                     syncError.value = '';
-                    const eventsObj = {};
-                    events.value.forEach(e => { eventsObj[e.id] = e; });
                     try {
-                        await db.ref(`rooms/${roomKey.value}`).set({
-                            events: eventsObj,
+                        const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomKey.value);
+                        await setDoc(roomDocRef, {
+                            events: events.value,
                             config: config.value,
                             updatedAt: Date.now()
-                        });
-                        setTimeout(() => saving.value = false, 500);
+                        }, { merge: true });
+                        setTimeout(() => saving.value = false, 400);
                     } catch (e) {
                         saving.value = false;
                         syncError.value = '同步儲存失敗';
@@ -387,14 +405,13 @@
 
                 const fetchWeather = async () => {
                     try {
-                        // 香港經緯度：22.3193, 114.1694
                         const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=22.3193&longitude=114.1694&current_weather=true&daily=precipitation_probability_max&timezone=Asia%2FHong_Kong');
                         const data = await res.json();
                         weather.value = { 
                             temp: Math.round(data.current_weather.temperature), 
                             rainChance: data.daily?.precipitation_probability_max?.[0] || 0 
                         };
-                    } catch (e) { console.error('Weather error'); }
+                    } catch (e) { console.error('Weather API error'); }
                 };
 
                 const fetchRates = async () => {
@@ -477,7 +494,7 @@
 
                 return {
                     roomJoined, roomInput, roomDisplay, syncError, config, events, filteredEvents, currentDayId, 
-                    showModal, editingId, lang, form, calc, rates, saving, weather,
+                    showModal, editingId, lang, form, calc, rates, saving, connecting, weather,
                     joinRoom, toggleLang, openAdd, openEdit, saveEvent, removeEvent, addDay, removeLastDay, convertCurrency, openUrl, openRoute, saveToCloud
                 };
             }
