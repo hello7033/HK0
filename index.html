@@ -3,547 +3,370 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>香港旅遊行程表</title>
-    <!-- Vue 3 -->
+    <title>香港旅遊行程表 - 極簡金箔版</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- SortableJS for Drag and Drop -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-    <!-- QRCode JS for cross-device sharing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <!-- FontAwesome Icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Playfair+Display:ital,wght@0,700;1,700&display=swap');
+        
         [v-cloak] { display: none !important; }
         
         body { 
-            font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif; 
-            background: linear-gradient(135deg, #f7f6f2 0%, #ece9e2 50%, #e1dcd3 100%);
+            font-family: 'Noto Sans TC', sans-serif; 
+            background: radial-gradient(circle at center, #fffef0 0%, #fff9db 100%);
             background-attachment: fixed;
             min-height: 100vh;
+            color: #334155;
             margin: 0;
             overflow-x: hidden;
-            color: #2c2a29;
         }
 
         .glass-panel { 
-            background: rgba(255, 255, 255, 0.82); 
-            backdrop-filter: blur(20px); 
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.85); 
-            box-shadow: 0 12px 40px -10px rgba(40, 35, 30, 0.05);
+            background: rgba(255, 255, 255, 0.85); 
+            backdrop-filter: blur(25px); 
+            border: 1px solid rgba(212, 175, 55, 0.2); 
+            box-shadow: 0 20px 50px rgba(133, 77, 14, 0.1);
         }
-        .glass-header { 
-            background: rgba(247, 246, 242, 0.85); 
-            backdrop-filter: blur(20px); 
-            -webkit-backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.6); 
-        }
-        .glass-card { 
-            background: rgba(255, 255, 255, 0.75); 
-            backdrop-filter: blur(16px); 
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.8); 
-            box-shadow: 0 8px 32px 0 rgba(40, 35, 30, 0.04); 
-        }
-
-        .editable-input { background: transparent; border: none; outline: none; width: 100%; }
-        .sortable-ghost { opacity: 0.3; background: #e5e0d8 !important; }
-        .sortable-drag { opacity: 0.9; }
         
+        .gold-gradient-text {
+            background: linear-gradient(135deg, #b45309 0%, #fbbf24 50%, #d4af37 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .action-btn { background: white; border: 1px solid rgba(212, 175, 55, 0.3); transition: all 0.2s; }
+        .action-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2); }
 
-        .desc-text { white-space: pre-wrap; }
-        .action-btn { 
-            background: rgba(255,255,255,0.9); 
-            border: 1px solid rgba(0,0,0,0.06); 
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); 
+        .day-input {
+            background: transparent;
+            border: none;
+            outline: none;
+            text-align: center;
+            width: 100%;
+            font-weight: bold;
+            cursor: text;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: background 0.2s;
         }
-        .action-btn:hover { 
-            background: #2c2a29; 
-            color: #ffffff !important;
-            border-color: #2c2a29;
-            transform: translateY(-1px); 
+        .day-input:focus {
+            background: rgba(0, 0, 0, 0.05);
         }
-        .action-btn:hover i {
-            color: #ffffff !important;
+        .day-active .day-input:focus {
+            background: rgba(255, 255, 255, 0.2);
         }
-
-        .sync-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-        .sync-dot.cloud { background: #34d399; box-shadow: 0 0 8px rgba(52, 211, 153, 0.6); }
-        .sync-dot.local { background: #fbbf24; box-shadow: 0 0 8px rgba(251, 191, 36, 0.6); }
-        .sync-dot.syncing { background: #60a5fa; box-shadow: 0 0 8px rgba(96, 165, 250, 0.8); }
-
-        .day-btn-input { background: transparent; border: none; outline: none; width: 100%; text-align: center; font-weight: 600; cursor: pointer; letter-spacing: 0.05em; }
     </style>
 </head>
 <body>
     <div id="app" v-cloak>
-        <!-- Toast 訊息提示 -->
-        <transition enter-active-class="transition duration-300 ease-out" enter-from-class="transform -translate-y-4 opacity-0" enter-to-class="transform translate-y-0 opacity-100" leave-active-class="transition duration-200 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
-            <div v-if="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[200]">
-                <div class="bg-stone-900 text-stone-100 px-6 py-3 rounded-full shadow-2xl text-xs font-medium flex items-center gap-2 border border-stone-700/50 backdrop-blur-md">
-                    <i class="fa-solid fa-circle-check text-amber-400"></i>
-                    <span>{{ toast }}</span>
-                </div>
-            </div>
-        </transition>
-
-        <!-- 🔐 入口頁面 -->
+        <!-- 🔐 登入頁 -->
         <div v-if="!roomJoined" class="min-h-screen flex items-center justify-center px-6 relative z-50">
-            <div class="glass-panel w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl text-center space-y-8">
-                <div>
-                    <div class="text-5xl mb-4 opacity-90">🏙️</div>
-                    <p class="text-[11px] font-bold text-stone-500 uppercase tracking-[0.4em]">Hong Kong Trip</p>
-                    <h1 class="text-3xl font-light text-stone-800 mt-2 tracking-wide">Spring <span class="italic font-serif text-stone-600">2026</span></h1>
+            <div class="glass-panel w-full max-w-md rounded-[3rem] p-10 md:p-14 text-center space-y-10">
+                <div class="space-y-3">
+                    <div class="text-6xl mb-4">🌃🇭🇰</div>
+                    <p class="text-[12px] font-black text-yellow-600 uppercase tracking-[0.5em]">Hong Kong Trip</p>
+                    <h1 class="text-3xl font-light text-slate-700">Spring <span class="italic font-serif font-bold text-slate-800">2026</span></h1>
                 </div>
-                <div class="space-y-3 text-left">
-                    <label class="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">房間暗號</label>
-                    <input v-model="roomInput" @keyup.enter="joinRoom" type="text" placeholder="輸入您的專屬暗號"
-                        class="w-full bg-white/80 border border-stone-200/80 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:border-stone-500 text-center tracking-wider shadow-inner font-medium">
+                
+                <div class="space-y-6">
+                    <div class="space-y-2 text-left">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4">Room Access Key / 房間暗號</label>
+                        <input v-model="roomInput" @keyup.enter="joinRoom" type="password" placeholder="••••••••"
+                            class="w-full bg-white/50 border border-slate-100 rounded-3xl py-5 px-6 text-xl focus:outline-none focus:border-yellow-300 text-center tracking-[0.3em] shadow-inner">
+                    </div>
+                    
+                    <button @click="joinRoom" :disabled="!roomInput"
+                        class="w-full py-5 bg-slate-900 text-white rounded-3xl text-[12px] font-bold uppercase tracking-widest disabled:opacity-20 hover:bg-slate-800 transition-all shadow-xl hover:shadow-yellow-200/50">
+                        Enter Journey →
+                    </button>
                 </div>
-                <button @click="joinRoom" :disabled="!roomInput"
-                    class="w-full py-4 bg-stone-900 text-stone-100 rounded-2xl text-[11px] font-bold tracking-widest uppercase disabled:opacity-20 hover:bg-stone-800 transition-all shadow-md">
-                    進入行程 →
-                </button>
+
+                <p class="text-[10px] text-slate-300 font-medium">Please enter your private code to view the itinerary.</p>
             </div>
         </div>
 
-        <!-- 主內容頁面 -->
-        <div v-if="roomJoined" class="min-h-screen pb-20 relative z-10">
-            <!-- 頂部 Header -->
-            <header class="glass-header p-6 md:p-8 rounded-b-[2.5rem] sticky top-0 z-50 shadow-sm">
-                <div class="flex justify-between items-center max-w-4xl mx-auto">
-                    <div class="space-y-1 flex-1 mr-4">
-                        <input v-model="config.title" @change="triggerSave" class="editable-input text-[11px] tracking-[0.35em] font-bold text-stone-500 uppercase">
-                        <input v-model="config.subtitle" @change="triggerSave" class="editable-input text-2xl md:text-3xl font-light text-stone-800 tracking-tight">
-                        <div class="flex items-center gap-3 text-[11px] text-stone-500 font-medium mt-2">
-                            <span><i class="fa-solid fa-cloud-sun text-stone-400 mr-1"></i> {{ weather.desc }}: {{ weather.temp }}°C | {{ t('降雨機率') }}: {{ weather.rainChance }}%</span>
+        <!-- 🗺️ 主行程頁 -->
+        <div v-else class="min-h-screen pb-20 relative z-10">
+            <header class="glass-panel p-8 sticky top-0 z-50 rounded-b-[3.5rem] border-b-2 border-yellow-400/30">
+                <div class="max-w-4xl mx-auto flex justify-between items-center">
+                    <div class="flex-1 mr-4">
+                        <div class="gold-gradient-text font-black tracking-widest text-xs uppercase mb-1">
+                            {{ config.title || 'HONG KONG VOYAGE' }}
+                        </div>
+                        <div class="text-3xl font-serif italic text-slate-800">
+                            {{ config.subtitle || 'Golden Memories' }}
+                        </div>
+                        
+                        <!-- 🌤️ 香港天氣與降雨顯示 -->
+                        <div class="flex items-center gap-3 text-[11px] font-bold mt-3">
+                            <div class="flex items-center gap-1.5 bg-yellow-50 px-2 py-1 rounded-full text-yellow-700">
+                                <i class="fa-solid fa-location-dot"></i>
+                                <span>Hong Kong</span>
+                            </div>
+                            <div v-if="weather" class="flex items-center gap-3 text-slate-400">
+                                <span class="flex items-center gap-1">
+                                    <i class="fa-solid fa-temperature-half text-orange-400"></i>
+                                    {{ weather.temp }}°C
+                                </span>
+                                <span class="flex items-center gap-1">
+                                    <i class="fa-solid fa-cloud-rain text-blue-400"></i>
+                                    {{ lang === 'zh' ? '降雨機率' : 'Rain' }}: {{ weather.rainChance }}%
+                                </span>
+                            </div>
+                            <div v-else class="animate-pulse text-slate-300">Loading Weather...</div>
                         </div>
                     </div>
-                    <div class="flex flex-col items-end gap-2.5">
-                        <div class="flex items-center gap-2">
-                            <button @click="openShareModal" class="text-[10px] font-bold text-stone-700 bg-white/80 hover:bg-stone-900 hover:text-white px-3 py-1.5 rounded-full border border-stone-200/80 transition-all flex items-center gap-1.5 shadow-sm">
-                                <i class="fa-solid fa-share-nodes text-xs"></i> {{ t('分享與同步') }}
-                            </button>
-                            <button @click="toggleLang" class="text-[10px] font-bold text-stone-500 border-b border-stone-400/60 hover:border-stone-800 px-1 py-0.5 uppercase tracking-wider transition-colors">
-                                {{ lang === 'zh' ? 'EN' : '中文' }}
-                            </button>
-                        </div>
-                        <div class="flex items-center gap-2 bg-stone-200/60 px-3 py-1 rounded-full border border-stone-300/40">
-                            <span class="sync-dot" :class="syncStatus"></span>
-                            <span class="text-[9px] font-bold text-stone-600 tracking-wider uppercase">
-                                {{ syncStatus === 'cloud' ? '雲端同步中' : (syncStatus === 'syncing' ? '同步中...' : '本地廣播模式') }}
-                            </span>
+
+                    <div class="flex flex-col items-end gap-2 shrink-0">
+                        <button @click="toggleLang" class="text-[10px] font-black text-slate-400 border-b border-yellow-300 px-2 py-1 uppercase hover:text-yellow-600 transition-colors">
+                            {{ lang === 'zh' ? 'ENGLISH' : '繁中' }}
+                        </button>
+                        <div class="text-[9px] text-slate-300 font-bold uppercase tracking-tighter">
+                            <span :class="saving ? 'text-red-400 animate-pulse' : 'text-green-500'">{{ saving ? 'Syncing...' : 'Live' }}</span>
                         </div>
                     </div>
                 </div>
             </header>
 
-            <main class="max-w-4xl mx-auto p-4 md:p-6 mt-4 space-y-6">
-                <!-- 匯率工具 (港幣 HKD 基準) -->
-                <div class="glass-card p-5 md:p-6 rounded-[2rem]">
-                    <div class="flex justify-between items-center mb-3">
-                        <div class="text-stone-700 font-bold text-xs tracking-wider uppercase flex items-center gap-2">
-                            <i class="fa-solid fa-coins text-amber-700"></i> {{ t('匯率試算') }}
-                        </div>
-                        <div class="text-[10px] font-medium text-stone-500">1 HKD ≈ {{ rates.hkd_twd }} TWD</div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4 text-center">
-                        <div class="bg-white/70 p-3 rounded-2xl border border-stone-200/60 shadow-inner">
-                            <label class="block text-[9px] text-stone-400 mb-1 uppercase tracking-widest font-bold">{{ t('港幣') }} (HKD)</label>
-                            <input v-model.number="calc.hkd" @input="convertCurrency('hkd')" type="number" class="w-full bg-transparent text-center font-semibold text-stone-800 text-lg outline-none">
-                        </div>
-                        <div class="bg-white/70 p-3 rounded-2xl border border-stone-200/60 shadow-inner">
-                            <label class="block text-[9px] text-stone-400 mb-1 uppercase tracking-widest font-bold">{{ t('台幣') }} (TWD)</label>
-                            <input v-model.number="calc.twd" @input="convertCurrency('twd')" type="number" class="w-full bg-transparent text-center font-semibold text-stone-800 text-lg outline-none">
-                        </div>
+            <main class="max-w-4xl mx-auto p-6 mt-8 space-y-8">
+                <!-- 匯率轉換工具 (已移除澳幣，僅留港幣與台幣) -->
+                <div class="glass-panel p-8 rounded-[2.5rem] grid grid-cols-2 gap-6">
+                    <div v-for="curr in ['hkd', 'twd']" :key="curr" class="text-center">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">
+                            {{ lang === 'zh' ? (curr === 'hkd' ? '港幣 (HKD)' : '台幣 (TWD)') : curr.toUpperCase() }}
+                        </label>
+                        <input v-model.number="calc[curr]" @input="convertCurrency(curr)" type="number" 
+                            class="w-full bg-transparent border-b border-yellow-200 text-center text-xl font-bold py-2 focus:border-yellow-500 outline-none transition-colors">
                     </div>
                 </div>
 
-                <!-- 天數切換與管理 -->
-                <div class="flex items-center gap-3 overflow-x-auto pb-2 no-scrollbar">
-                    <div class="flex bg-white/70 backdrop-blur-md rounded-full shadow-sm p-1.5 gap-1 shrink-0 border border-stone-200/50">
-                        <template v-if="config.days && config.days.length">
-                            <div v-for="(day, index) in config.days" :key="day.id" class="flex items-center">
-                                <div @click="currentDayId = day.id"
-                                    :class="['px-5 h-9 rounded-full text-xs transition-all min-w-[85px] flex items-center justify-center cursor-pointer', currentDayId === day.id ? 'bg-stone-900 text-stone-100 shadow-md font-bold' : 'text-stone-500 hover:text-stone-800']">
-                                    <input v-model="day.label" @change="triggerSave" @click.stop 
-                                        :class="['day-btn-input uppercase', currentDayId === day.id ? 'text-stone-100' : 'text-stone-500']">
-                                </div>
-                            </div>
-                        </template>
+                <!-- 天數導覽 -->
+                <div class="flex gap-3 overflow-x-auto no-scrollbar py-2 items-center">
+                    <div class="flex bg-white/60 p-2 rounded-full gap-2 shadow-sm border border-yellow-100 items-center">
+                        <div v-for="day in config.days" :key="day.id" 
+                            @click="currentDayId = day.id"
+                            :class="['px-2 py-2 rounded-full whitespace-nowrap text-xs font-bold transition-all flex items-center min-w-[120px]', currentDayId === day.id ? 'bg-yellow-600 text-white shadow-lg scale-105 day-active' : 'text-slate-400 hover:text-yellow-600']">
+                            <input v-model="day.label" 
+                                @change="saveToCloud" 
+                                @click.stop
+                                class="day-input uppercase" 
+                                :class="currentDayId === day.id ? 'text-white placeholder-white/50' : 'text-slate-400 placeholder-slate-300'">
+                        </div>
                     </div>
-                    <div class="flex gap-1.5 shrink-0">
-                        <button @click="addDay" class="w-9 h-9 rounded-full bg-white/70 text-stone-600 flex items-center justify-center text-xs shadow-sm hover:bg-stone-900 hover:text-white transition-colors border border-stone-200/60">+</button>
-                        <button @click="removeLastDay" v-if="config.days && config.days.length > 1" class="w-9 h-9 rounded-full bg-white/70 text-stone-400 flex items-center justify-center text-xs shadow-sm hover:text-red-500 transition-colors border border-stone-200/60">-</button>
+                    <div class="flex gap-2">
+                        <button @click="addDay" class="w-10 h-10 shrink-0 bg-white border border-yellow-200 text-yellow-600 rounded-full hover:bg-yellow-50 shadow-sm flex items-center justify-center">+</button>
+                        <button v-if="config.days && config.days.length > 1" @click="removeLastDay" class="w-10 h-10 shrink-0 bg-white border border-yellow-200 text-slate-300 rounded-full hover:text-red-400 shadow-sm flex items-center justify-center">-</button>
                     </div>
                 </div>
 
                 <!-- 行程清單 -->
-                <div id="sortable-events" class="space-y-4">
-                    <div v-for="event in filteredEvents" :key="event.id" :data-id="event.id" class="flex gap-3 md:gap-4 group">
-                        <div class="w-12 text-[11px] font-bold text-stone-400 pt-5 text-right uppercase tracking-tighter shrink-0">
-                            {{ event.timeDisplay }}
+                <div id="sortable-events" class="space-y-6">
+                    <div v-for="event in filteredEvents" :key="event.id" :data-id="event.id" class="flex gap-4 group">
+                        <div class="w-16 shrink-0 text-center pt-2">
+                            <div class="text-xs font-black text-yellow-600 uppercase tracking-tighter">{{ event.time || '--:--' }}</div>
+                            <div class="w-px h-full bg-yellow-100 mx-auto mt-2"></div>
                         </div>
-
-                        <div @click="openEdit(event)" class="flex-1 glass-panel p-5 md:p-6 rounded-[2rem] relative cursor-pointer active:scale-[0.99] transition-all hover:shadow-lg border-l-4 border-l-stone-700">
-                            <button @click.stop="removeEvent(event.id)" class="absolute top-5 right-5 text-stone-300 hover:text-red-500 transition-colors p-1"><i class="fa-solid fa-trash text-xs"></i></button>
-                            
-                            <h3 class="text-base font-bold text-stone-800 mb-1.5 tracking-wide pr-6">{{ event.location || '未命名行程' }}</h3>
-                            <div v-if="event.desc" class="desc-text text-xs text-stone-600 leading-relaxed mb-3 font-normal">{{ event.desc }}</div>
-                            
-                            <div class="flex flex-wrap gap-2 pt-1">
-                                <button v-if="event.mapUrl" @click.stop="openUrl(event.mapUrl)" class="action-btn flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold text-stone-600">
-                                    <i class="fa-solid fa-map-location-dot text-stone-500"></i> {{ t('地圖資訊') }}
+                        <div @click="openEdit(event)" class="flex-1 glass-panel p-6 rounded-[2.2rem] relative cursor-pointer hover:shadow-2xl hover:scale-[1.01] transition-all border-l-4 border-l-yellow-500">
+                            <div class="flex justify-between items-start">
+                                <h3 class="text-xl font-bold text-slate-800">{{ event.location || '未命名地點' }}</h3>
+                                <button @click.stop="removeEvent(event.id)" class="text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2">
+                                    <i class="fas fa-trash text-xs"></i>
                                 </button>
-                                <button v-if="event.routeA && event.routeB" @click.stop="openRoute(event.routeA, event.routeB)" class="action-btn flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold text-stone-600">
-                                    <i class="fa-solid fa-route text-stone-500"></i> {{ event.routeName || (event.routeA + ' ➔ ' + event.routeB) }}
+                            </div>
+                            <p class="text-sm text-slate-500 mt-2 whitespace-pre-line leading-relaxed">{{ event.desc }}</p>
+                            
+                            <!-- 功能按鈕 -->
+                            <div class="flex flex-wrap gap-2 mt-5">
+                                <button v-if="event.mapUrl" @click.stop="openUrl(event.mapUrl)" class="action-btn px-4 py-2 rounded-full text-[10px] font-bold text-slate-500 flex items-center gap-2 uppercase">
+                                    <i class="fa-solid fa-location-dot text-red-400"></i> {{ lang === 'zh' ? '開啟地圖' : 'Map' }}
                                 </button>
-                                <button v-if="event.videoUrl" @click.stop="openUrl(event.videoUrl)" class="action-btn flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold text-stone-600">
-                                    <i class="fa-solid fa-link text-stone-500"></i> {{ event.videoName || t('查看參考') }}
+                                <button v-if="event.routeA && event.routeB" @click.stop="openRoute(event.routeA, event.routeB)" class="action-btn px-4 py-2 rounded-full text-[10px] font-bold text-slate-500 flex items-center gap-2 uppercase">
+                                    <i class="fa-solid fa-route text-blue-400"></i> {{ event.routeName || (event.routeA + ' → ' + event.routeB) }}
+                                </button>
+                                <button v-if="event.videoUrl" @click.stop="openUrl(event.videoUrl)" class="action-btn px-4 py-2 rounded-full text-[10px] font-bold text-slate-500 flex items-center gap-2 uppercase">
+                                    <i class="fa-solid fa-play text-orange-400"></i> {{ event.videoName || (lang === 'zh' ? '參考' : 'Link') }}
                                 </button>
                             </div>
                         </div>
                     </div>
                     
-                    <button @click="openAdd" 
-                        class="w-full ml-12 md:ml-14 py-4 border border-dashed border-stone-300/80 rounded-[1.8rem] text-stone-500 text-[11px] font-bold tracking-widest uppercase hover:bg-white/50 hover:border-stone-500 transition-all" style="width: calc(100% - 48px)">
-                        + {{ t('New Entry') }}
+                    <button @click="openAdd" class="w-full py-10 border-2 border-dashed border-yellow-200 rounded-[2.5rem] text-yellow-600/30 font-bold hover:bg-yellow-50/50 transition-all uppercase text-[10px] tracking-[0.3em]">
+                        + {{ lang === 'zh' ? '新增行程' : 'ADD NEW ENTRY' }}
                     </button>
                 </div>
             </main>
 
-            <!-- 🔗 分享與同步 Modal -->
-            <div v-if="showShare" class="fixed inset-0 z-[100] flex items-center justify-center p-6">
-                <div class="absolute inset-0 bg-stone-900/40 backdrop-blur-md" @click="showShare = false"></div>
-                <div class="relative bg-white/95 w-full max-w-sm rounded-[2.5rem] p-7 shadow-2xl space-y-5 border border-stone-200 text-center">
-                    <div>
-                        <h3 class="text-base font-bold text-stone-800 tracking-wide">跨裝置同步與分享</h3>
-                        <p class="text-[11px] text-stone-500 mt-1">房間暗號：<span class="font-bold text-stone-800">{{ roomCode }}</span></p>
-                    </div>
-
-                    <!-- QR Code 展示區 -->
-                    <div class="flex justify-center my-2">
-                        <div id="qrcode" class="p-3 bg-white rounded-2xl border border-stone-200 shadow-sm"></div>
-                    </div>
-
-                    <div class="space-y-2">
-                        <button @click="copyShareLink" class="w-full py-3 bg-stone-900 text-white rounded-2xl text-xs font-bold tracking-wider hover:bg-stone-800 transition-all shadow-md flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-copy"></i> 複製專屬行程連結
-                        </button>
-                        <div class="grid grid-cols-2 gap-2 pt-2">
-                            <button @click="exportJSON" class="py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-[11px] font-bold transition-all border border-stone-200">
-                                <i class="fa-solid fa-download mr-1"></i> 匯出 JSON
-                            </button>
-                            <label class="py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-[11px] font-bold transition-all border border-stone-200 cursor-pointer block text-center">
-                                <i class="fa-solid fa-upload mr-1"></i> 匯入 JSON
-                                <input type="file" @change="importJSON" accept=".json" class="hidden">
-                            </label>
-                        </div>
-                    </div>
-
-                    <button @click="showShare = false" class="text-xs text-stone-400 hover:text-stone-800 pt-2 font-medium">關閉窗口</button>
-                </div>
-            </div>
-
-            <!-- 📝 編輯彈窗 -->
-            <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6">
-                <div class="absolute inset-0 bg-stone-900/40 backdrop-blur-md" @click="showModal = false"></div>
-                <div class="relative bg-white/95 w-full max-w-md rounded-[2.5rem] p-7 shadow-2xl space-y-4 overflow-hidden flex flex-col max-h-[90vh] border border-stone-200">
-                    <div class="text-center shrink-0 mb-1">
-                        <p class="text-[11px] font-bold text-stone-500 uppercase tracking-widest">{{ editingId ? t('編輯行程') : t('New Entry') }}</p>
-                    </div>
-                    
-                    <div class="space-y-4 overflow-y-auto pr-1 no-scrollbar flex-1 pb-2">
+            <!-- 行程編輯/新增彈窗 -->
+            <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="showModal = false"></div>
+                <div class="relative bg-white w-full max-w-lg rounded-[3rem] p-8 shadow-2xl space-y-6 overflow-y-auto max-h-[90vh] no-scrollbar border border-yellow-100">
+                    <h2 class="text-xl font-bold text-center gold-gradient-text uppercase tracking-widest">{{ editingId ? (lang === 'zh' ? '修改行程' : 'EDIT') : (lang === 'zh' ? '新增行程' : 'NEW EVENT') }}</h2>
+                    <div class="space-y-5">
                         <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="text-[9px] font-bold text-stone-400 uppercase ml-1 tracking-wider">{{ t('時間') }}</label>
-                                <input v-model="form.time" placeholder="09:00 (選填)" class="w-full border-b border-stone-200 py-2 text-xs focus:outline-none focus:border-stone-800 bg-transparent">
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-400 ml-1">時間</label>
+                                <input v-model="form.time" placeholder="09:00" class="w-full border-b py-2 px-1 outline-none focus:border-yellow-500">
                             </div>
-                            <div>
-                                <label class="text-[9px] font-bold text-stone-400 uppercase ml-1 tracking-wider">{{ t('標題') }}</label>
-                                <input v-model="form.location" placeholder="行程名稱" class="w-full border-b border-stone-200 py-2 text-xs focus:outline-none focus:border-stone-800 bg-transparent font-medium">
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-400 ml-1">地點名稱</label>
+                                <input v-model="form.location" placeholder="地點名稱" class="w-full border-b py-2 px-1 outline-none focus:border-yellow-500">
                             </div>
                         </div>
-                        
-                        <div class="bg-stone-100/70 p-4 rounded-2xl space-y-2.5 border border-stone-200/50">
-                            <label class="text-[9px] font-bold text-stone-600 uppercase tracking-wider flex items-center gap-2">
-                                <i class="fa-solid fa-map-signs text-stone-500"></i> 路線規劃 (選填)
+
+                        <div class="bg-yellow-50/50 p-5 rounded-2xl space-y-4">
+                            <label class="text-[10px] font-bold text-yellow-700 uppercase flex items-center gap-2">
+                                <i class="fa-solid fa-route"></i> 導航規劃 (起點/終點)
                             </label>
                             <div class="flex items-center gap-2">
-                                <input v-model="form.routeA" placeholder="起點" class="flex-1 bg-white border border-stone-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none">
-                                <span class="text-stone-400 text-xs">➔</span>
-                                <input v-model="form.routeB" placeholder="終點" class="flex-1 bg-white border border-stone-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none">
+                                <input v-model="form.routeA" placeholder="起點" class="flex-1 bg-white border border-yellow-100 rounded-xl px-3 py-2 text-xs">
+                                <span class="text-slate-300">→</span>
+                                <input v-model="form.routeB" placeholder="終點" class="flex-1 bg-white border border-yellow-100 rounded-xl px-3 py-2 text-xs">
                             </div>
-                            <input v-model="form.routeName" placeholder="按鈕顯示名稱" class="w-full bg-white border border-stone-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none">
+                            <input v-model="form.routeName" placeholder="按鈕顯示文字 (如: 搭乘地鐵前往飯店)" class="w-full bg-white border border-yellow-100 rounded-xl px-3 py-2 text-xs">
                         </div>
 
-                        <div class="space-y-2 bg-stone-100/70 p-4 rounded-2xl border border-stone-200/50">
-                            <label class="text-[9px] font-bold text-stone-600 uppercase tracking-wider flex items-center gap-2">
-                                <i class="fa-solid fa-link text-stone-500"></i> 連結 (Reels / Blog)
+                        <div class="bg-blue-50/30 p-5 rounded-2xl space-y-3">
+                            <label class="text-[10px] font-bold text-blue-700 uppercase flex items-center gap-2">
+                                <i class="fa-solid fa-link"></i> 外部連結
                             </label>
-                            <input v-model="form.videoUrl" placeholder="貼上網址" class="w-full border-b border-stone-200 py-1 text-xs focus:outline-none bg-transparent">
-                            <input v-model="form.videoName" placeholder="顯示名稱" class="w-full border-b border-stone-200 py-1 text-xs focus:outline-none italic opacity-70 bg-transparent">
+                            <input v-model="form.videoUrl" placeholder="URL (Google/YouTube/Blog)" class="w-full border-b py-1 text-xs focus:outline-none border-blue-100 bg-transparent">
+                            <input v-model="form.videoName" placeholder="按鈕名稱" class="w-full border-b py-1 text-xs focus:outline-none border-blue-100 opacity-60 bg-transparent">
+                            <input v-model="form.mapUrl" placeholder="Google 地圖定位網址" class="w-full border-b py-1 text-xs focus:outline-none border-blue-100 bg-transparent">
                         </div>
 
-                        <div>
-                            <label class="text-[9px] font-bold text-stone-400 uppercase ml-1 tracking-wider">{{ t('地圖資訊') }}</label>
-                            <input v-model="form.mapUrl" placeholder="Google 地圖網址" class="w-full border-b border-stone-200 py-2 text-xs focus:outline-none focus:border-stone-800 bg-transparent">
-                        </div>
-
-                        <div>
-                            <label class="text-[9px] font-bold text-stone-400 uppercase ml-1 tracking-wider">{{ t('內容') }}</label>
-                            <textarea v-model="form.desc" placeholder="想記下的東西..." class="w-full border-b border-stone-200 py-2 text-xs focus:outline-none resize-none h-24 focus:border-stone-800 bg-transparent"></textarea>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 ml-1">備註細節</label>
+                            <textarea v-model="form.desc" placeholder="詳細筆記、必買、注意事項..." class="w-full border-b py-2 px-1 outline-none focus:border-yellow-500 h-28 resize-none"></textarea>
                         </div>
                     </div>
-
-                    <button @click="saveEvent" :disabled="!form.location"
-                        class="w-full py-4 bg-stone-900 text-stone-100 rounded-2xl text-[11px] font-bold tracking-widest uppercase disabled:opacity-20 shadow-lg shrink-0 active:scale-95 transition-all">
-                        確認儲存
+                    <button @click="saveEvent" class="w-full py-5 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 shadow-xl transition-all uppercase tracking-widest text-xs">
+                        {{ lang === 'zh' ? '儲存變更' : 'SAVE CHANGES' }}
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <script>
+        const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
-        const { createApp, ref, computed, nextTick, onMounted } = Vue;
+        const firebaseConfig = {
+            apiKey: "", 
+            authDomain: "sakura-db2eb.firebaseapp.com",
+            databaseURL: "https://sakura-db2eb-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "sakura-db2eb",
+            appId: "1:1018635903034:web:b9cff8697598f66be55503"
+        };
+
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
 
         createApp({
             setup() {
                 const roomJoined = ref(false);
                 const roomInput = ref('');
-                const roomCode = ref('');
-                const syncStatus = ref('local'); // 'cloud', 'local', 'syncing'
-                const toast = ref('');
-                const currentDayId = ref('d1');
+                const roomKey = ref('');
                 const lang = ref('zh');
-                const weather = ref({ temp: '--', desc: 'Hong Kong', rainChance: '--' });
+                const currentDayId = ref('d1');
                 const showModal = ref(false);
-                const showShare = ref(false);
                 const editingId = ref(null);
-                
+                const saving = ref(false);
+                const weather = ref(null);
                 let sortableInstance = null;
-                let broadcastChannel = null;
-                let db = null;
-                let roomDocRef = null;
-                let unsubscribeRoom = null;
 
                 const config = ref({ 
-                    title: 'HONG KONG ADVENTURE', 
-                    subtitle: 'Hong Kong 2026',
+                    title: 'HONG KONG VOYAGE', 
+                    subtitle: 'Golden Memories',
                     days: [{ id: 'd1', label: 'DAY 1' }]
                 });
 
                 const events = ref([]);
                 const form = ref({ time: '', location: '', desc: '', mapUrl: '', videoUrl: '', videoName: '', routeA: '', routeB: '', routeName: '' });
                 const calc = ref({ hkd: 0, twd: 0 });
-                const rates = ref({ hkd_twd: 4.15 });
+                const rates = ref({ hkd_twd: 4.12 });
 
-                const showToastMsg = (msg) => {
-                    toast.value = msg;
-                    setTimeout(() => { toast.value = ''; }, 2500);
-                };
-
-                // 檢查 URL query 是否有帶房間暗號
-                onMounted(() => {
-                    const params = new URLSearchParams(window.location.search);
-                    const roomParam = params.get('room');
-                    if (roomParam) {
-                        roomInput.value = roomParam;
-                        joinRoom();
-                    }
-                });
-
-                const joinRoom = async () => {
-                    const cleaned = roomInput.value.trim().toLowerCase().replace(/[^a-z0-9_\u4e00-\u9fa5]/g, '_');
-                    if (!cleaned) return;
-                    
-                    roomCode.value = cleaned;
+                const joinRoom = () => {
+                    const cleanRoom = roomInput.value.trim();
+                    if (!cleanRoom) return;
+                    roomKey.value = `room_${cleanRoom}`;
                     roomJoined.value = true;
-
-                    // 1. 初始化廣播通道 (多分頁秒級實時同步)
-                    if (window.BroadcastChannel) {
-                        broadcastChannel = new BroadcastChannel('hk_trip_' + roomCode.value);
-                        broadcastChannel.onmessage = (e) => {
-                            if (e.data && e.data.type === 'UPDATE') {
-                                events.value = e.data.events || [];
-                                config.value = e.data.config || config.value;
+                    
+                    const dbRef = db.ref(`rooms/${roomKey.value}`);
+                    dbRef.on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        if (data) {
+                            if (data.events) events.value = Object.values(data.events);
+                            if (data.config) {
+                                config.value = data.config;
+                                if (!config.value.days || config.value.days.length === 0) {
+                                    config.value.days = [{ id: 'd1', label: 'DAY 1' }];
+                                }
+                                if (!config.value.days.find(d => d.id === currentDayId.value)) {
+                                    currentDayId.value = config.value.days[0].id;
+                                }
                             }
-                        };
-                    }
-
-                    // 2. 先從 LocalStorage 載入資料
-                    loadFromLocal();
-
-                    // 3. 嘗試開啟雲端 Firestore 同步
-                    setupFirebase();
-
-                    fetchWeather();
-                    fetchRates();
-                };
-
-                // LocalStorage 讀寫
-                const saveToLocal = () => {
-                    const data = { events: events.value, config: config.value };
-                    localStorage.setItem('hk_trip_data_' + roomCode.value, JSON.stringify(data));
-                    if (broadcastChannel) {
-                        broadcastChannel.postMessage({ type: 'UPDATE', ...data });
-                    }
-                };
-
-                const loadFromLocal = () => {
-                    const localData = localStorage.getItem('hk_trip_data_' + roomCode.value);
-                    if (localData) {
-                        try {
-                            const parsed = JSON.parse(localData);
-                            if (parsed.events) events.value = parsed.events;
-                            if (parsed.config) config.value = parsed.config;
-                        } catch(e) { console.error('Local load error', e); }
-                    }
-                };
-
-                // 設定 Firebase (若有有效 key 則連線上雲端，否則切換為本地廣播)
-                const setupFirebase = async () => {
-                    try {
-                        const appId = typeof __app_id !== 'undefined' ? __app_id : 'hk-trip-2026';
-                        const defaultConfig = {
-                            apiKey: "AIzaSyDemoApiKey1234567890abcdef",
-                            authDomain: "sakura-db2eb.firebaseapp.com",
-                            projectId: "sakura-db2eb",
-                            storageBucket: "sakura-db2eb.appspot.com",
-                            appId: "1:1018635903034:web:b9cff8697598f66be55503"
-                        };
-                        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : defaultConfig;
-                        
-                        // 若為 demo key 則維持本地模式
-                        if (firebaseConfig.apiKey.includes('DemoApiKey')) {
-                            syncStatus.value = 'local';
-                            nextTick(() => initSortable());
-                            return;
                         }
-
-                        const app = initializeApp(firebaseConfig);
-                        const auth = getAuth(app);
-                        db = getFirestore(app);
-
-                        await signInAnonymously(auth);
-                        roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode.value);
-
-                        unsubscribeRoom = onSnapshot(roomDocRef, (docSnap) => {
-                            if (docSnap.exists()) {
-                                const data = docSnap.data();
-                                if (data.events) events.value = data.events;
-                                if (data.config) config.value = data.config;
-                                saveToLocal();
-                            } else {
-                                triggerSave();
-                            }
-                            syncStatus.value = 'cloud';
-                            nextTick(() => initSortable());
-                        }, (err) => {
-                            console.warn("Firestore access error, falling back to local mode:", err);
-                            syncStatus.value = 'local';
-                        });
-                    } catch (e) {
-                        console.warn("Cloud connection not available, using local sync mode:", e);
-                        syncStatus.value = 'local';
                         nextTick(() => initSortable());
-                    }
+                    });
+                    fetchRates();
+                    fetchWeather();
                 };
 
-                const triggerSave = async () => {
-                    saveToLocal();
-                    if (syncStatus.value === 'cloud' && roomDocRef) {
-                        try {
-                            await setDoc(roomDocRef, {
-                                events: JSON.parse(JSON.stringify(events.value)),
-                                config: JSON.parse(JSON.stringify(config.value)),
-                                updatedAt: Date.now()
-                            }, { merge: true });
-                        } catch (e) { console.error('Cloud save failed', e); }
+                const saveToCloud = async () => {
+                    if (!roomKey.value) return;
+                    saving.value = true;
+                    const eventsObj = {};
+                    events.value.forEach(e => { eventsObj[e.id] = e; });
+                    try {
+                        await db.ref(`rooms/${roomKey.value}`).update({
+                            events: eventsObj,
+                            config: config.value
+                        });
+                        setTimeout(() => saving.value = false, 800);
+                    } catch (e) {
+                        saving.value = false;
                     }
-                };
-
-                const toggleLang = () => { lang.value = lang.value === 'zh' ? 'en' : 'zh'; };
-
-                const t = (text) => {
-                    const d = { 
-                        '降雨機率': { en: 'Rain %' }, 
-                        '匯率試算': { en: 'Currency' }, 
-                        'New Entry': { en: 'Add Event' }, 
-                        '編輯行程': { en: 'Edit Entry' }, 
-                        '地圖資訊': { en: 'Map' }, 
-                        '查看參考': { en: 'Link' }, 
-                        '標題': { en: 'Title' }, 
-                        '內容': { en: 'Notes' }, 
-                        '港幣': { en: 'HKD' }, 
-                        '台幣': { en: 'TWD' }, 
-                        '時間': { en: 'Time' },
-                        '分享與同步': { en: 'Share & Sync' }
-                    };
-                    return lang.value === 'zh' ? text : (d[text]?.en || text);
                 };
 
                 const filteredEvents = computed(() => {
-                    if (!events.value) return [];
                     return events.value
                         .filter(e => e.dayId === currentDayId.value)
-                        .map(e => ({
-                            ...e,
-                            timeDisplay: (e.time && e.time !== '待定') ? e.time : ''
-                        }))
-                        .sort((a, b) => {
-                            if (a.customOrder !== undefined && b.customOrder !== undefined && a.customOrder !== null && b.customOrder !== null) {
-                                return a.customOrder - b.customOrder;
-                            }
-                            const timeA = (a.timeDisplay || 'zz:zz');
-                            const timeB = (b.timeDisplay || 'zz:zz');
-                            return timeA.localeCompare(timeB);
-                        });
+                        .sort((a, b) => (a.customOrder || 0) - (b.customOrder || 0));
                 });
 
                 const initSortable = () => {
                     const el = document.getElementById('sortable-events');
                     if (!el) return;
                     if (sortableInstance) sortableInstance.destroy();
-
                     sortableInstance = Sortable.create(el, {
                         animation: 150,
-                        ghostClass: 'sortable-ghost',
-                        dragClass: 'sortable-drag',
                         onEnd: () => {
                             const sortedIds = Array.from(el.querySelectorAll('[data-id]')).map(item => item.getAttribute('data-id'));
                             events.value.forEach(ev => {
                                 const newIdx = sortedIds.indexOf(ev.id);
-                                if (newIdx !== -1) {
-                                    ev.customOrder = newIdx;
-                                }
+                                if (newIdx !== -1) ev.customOrder = newIdx;
                             });
-                            triggerSave();
+                            saveToCloud();
                         }
                     });
                 };
 
                 const fetchWeather = async () => {
                     try {
+                        // 香港經緯度：22.3193, 114.1694
                         const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=22.3193&longitude=114.1694&current_weather=true&daily=precipitation_probability_max&timezone=Asia%2FHong_Kong');
                         const data = await res.json();
                         weather.value = { 
                             temp: Math.round(data.current_weather.temperature), 
-                            desc: 'Hong Kong', 
                             rainChance: data.daily?.precipitation_probability_max?.[0] || 0 
                         };
-                    } catch (e) { console.error('Weather fetch error:', e); }
+                    } catch (e) { console.error('Weather error'); }
                 };
 
                 const fetchRates = async () => {
@@ -553,141 +376,81 @@
                         if (data.rates && data.rates.TWD) {
                             rates.value.hkd_twd = data.rates.TWD.toFixed(2);
                         }
-                    } catch (e) { console.error('Rates fetch error:', e); }
+                    } catch (e) {}
                 };
-
-                const saveEvent = async () => {
-                    const timeVal = (form.value.time && form.value.time !== '待定') ? form.value.time : '';
-                    const eventData = {
-                        id: editingId.value || Date.now().toString(),
-                        dayId: currentDayId.value,
-                        ...form.value,
-                        time: timeVal,
-                        customOrder: editingId.value ? (events.value.find(e => e.id === editingId.value)?.customOrder) : events.value.length
-                    };
-                    
-                    if (editingId.value) {
-                        const idx = events.value.findIndex(e => e.id === editingId.value);
-                        if (idx !== -1) events.value[idx] = eventData;
-                    } else {
-                        events.value.push(eventData);
-                    }
-                    await triggerSave();
-                    showModal.value = false;
-                    showToastMsg('行程已儲存');
-                };
-
-                const openEdit = (event) => {
-                    editingId.value = event.id;
-                    const timeToEdit = (event.time && event.time !== '待定') ? event.time : '';
-                    form.value = { ...event, time: timeToEdit, routeName: event.routeName || '', videoName: event.videoName || '' };
-                    showModal.value = true;
-                };
-
-                const removeEvent = (id) => { 
-                    events.value = events.value.filter(e => e.id !== id); 
-                    triggerSave(); 
-                    showToastMsg('行程已刪除');
-                };
-
-                const addDay = () => { 
-                    if (!config.value.days) config.value.days = [];
-                    config.value.days.push({ 
-                        id: 'd' + Date.now(), 
-                        label: 'DAY ' + (config.value.days.length + 1) 
-                    }); 
-                    triggerSave(); 
-                };
-
-                const removeLastDay = () => { 
-                    if(config.value.days.length > 1) { 
-                        const removed = config.value.days.pop();
-                        events.value = events.value.filter(e => e.dayId !== removed.id);
-                        if (currentDayId.value === removed.id) currentDayId.value = config.value.days[0].id;
-                        triggerSave(); 
-                    } 
-                };
-
-                const openUrl = (url) => { if (url) window.open(url.startsWith('http') ? url : 'https://' + url, '_blank'); };
-                const openRoute = (a, b) => { window.open(`https://www.google.com/maps/dir/${encodeURIComponent(a)}/${encodeURIComponent(b)}`, '_blank'); };
 
                 const convertCurrency = (base) => {
                     const val = calc.value[base] || 0;
-                    if (base === 'hkd') { 
-                        calc.value.twd = Math.round(val * rates.value.hkd_twd); 
-                    }
-                    else if (base === 'twd') { 
-                        const hkd = val / rates.value.hkd_twd; 
-                        calc.value.hkd = Math.round(hkd); 
+                    if (base === 'hkd') {
+                        calc.value.twd = Math.round(val * rates.value.hkd_twd);
+                    } else if (base === 'twd') {
+                        calc.value.hkd = Number((val / rates.value.hkd_twd).toFixed(1));
                     }
                 };
 
-                // 分享 Modal 與 QR Code 生成
-                const openShareModal = () => {
-                    showShare.value = true;
-                    nextTick(() => {
-                        const qrContainer = document.getElementById('qrcode');
-                        if (qrContainer) {
-                            qrContainer.innerHTML = '';
-                            const shareUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(roomCode.value)}`;
-                            new QRCode(qrContainer, {
-                                text: shareUrl,
-                                width: 140,
-                                height: 140,
-                                colorDark : "#2c2a29",
-                                colorLight : "#ffffff",
-                                correctLevel : QRCode.CorrectLevel.H
-                            });
-                        }
-                    });
+                const openAdd = () => {
+                    editingId.value = null;
+                    form.value = { time: '', location: '', desc: '', mapUrl: '', videoUrl: '', videoName: '', routeA: '', routeB: '', routeName: '' };
+                    showModal.value = true;
                 };
 
-                const copyShareLink = () => {
-                    const shareUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(roomCode.value)}`;
-                    const textarea = document.createElement('textarea');
-                    textarea.value = shareUrl;
-                    document.body.appendChild(textarea);
-                    textarea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textarea);
-                    showToastMsg('專屬連結已複製到剪貼簿！');
+                const openEdit = (e) => {
+                    editingId.value = e.id;
+                    form.value = { ...e };
+                    showModal.value = true;
                 };
 
-                const exportJSON = () => {
-                    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ events: events.value, config: config.value }));
-                    const downloadAnchor = document.createElement('a');
-                    downloadAnchor.setAttribute("href", dataStr);
-                    downloadAnchor.setAttribute("download", `hk_trip_${roomCode.value}.json`);
-                    document.body.appendChild(downloadAnchor);
-                    downloadAnchor.click();
-                    downloadAnchor.remove();
-                    showToastMsg('JSON 行程檔已下載');
-                };
-
-                const importJSON = (event) => {
-                    const file = event.target.files[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        try {
-                            const imported = JSON.parse(e.target.result);
-                            if (imported.events) events.value = imported.events;
-                            if (imported.config) config.value = imported.config;
-                            triggerSave();
-                            showToastMsg('行程已成功匯入！');
-                            showShare.value = false;
-                        } catch (err) {
-                            showToastMsg('格式錯誤，無法讀取');
-                        }
+                const saveEvent = () => {
+                    if (!form.value.location) return;
+                    const id = editingId.value || Date.now().toString();
+                    const eventData = { 
+                        ...form.value, 
+                        id, 
+                        dayId: currentDayId.value,
+                        customOrder: editingId.value ? (events.value.find(e => e.id === id)?.customOrder || 0) : events.value.length
                     };
-                    reader.readAsText(file);
+
+                    if (editingId.value) {
+                        const idx = events.value.findIndex(e => e.id === id);
+                        events.value[idx] = eventData;
+                    } else {
+                        events.value.push(eventData);
+                    }
+                    saveToCloud();
+                    showModal.value = false;
                 };
 
-                return { 
-                    roomJoined, roomInput, roomCode, syncStatus, toast, config, events, filteredEvents, currentDayId, showModal, showShare, editingId, lang, weather, calc, rates, form, 
-                    joinRoom, toggleLang, t, triggerSave, addDay, removeLastDay, openUrl, openRoute, openShareModal, copyShareLink, exportJSON, importJSON,
-                    openAdd: () => { editingId.value = null; form.value = { time: '', location: '', desc: '', mapUrl: '', videoUrl: '', videoName: '', routeA: '', routeB: '', routeName: '' }; showModal.value = true; },
-                    openEdit, saveEvent, removeEvent, convertCurrency 
+                const removeEvent = (id) => {
+                    events.value = events.value.filter(e => e.id !== id);
+                    saveToCloud();
+                };
+
+                const addDay = () => {
+                    if (!config.value.days) config.value.days = [];
+                    const newId = 'd' + Date.now();
+                    config.value.days.push({ id: newId, label: 'DAY ' + (config.value.days.length + 1) });
+                    saveToCloud();
+                };
+
+                const removeLastDay = () => {
+                    if (config.value.days.length > 1) {
+                        const removedDay = config.value.days.pop();
+                        events.value = events.value.filter(e => e.dayId !== removedDay.id);
+                        if (currentDayId.value === removedDay.id) {
+                            currentDayId.value = config.value.days[0].id;
+                        }
+                        saveToCloud();
+                    }
+                };
+
+                const toggleLang = () => { lang.value = lang.value === 'zh' ? 'en' : 'zh'; };
+                const openUrl = (url) => { if (url) window.open(url.startsWith('http') ? url : 'https://' + url, '_blank'); };
+                const openRoute = (a, b) => { window.open(`https://www.google.com/maps/dir/${encodeURIComponent(a)}/${encodeURIComponent(b)}`, '_blank'); };
+
+                return {
+                    roomJoined, roomInput, config, events, filteredEvents, currentDayId, 
+                    showModal, editingId, lang, form, calc, rates, saving, weather,
+                    joinRoom, toggleLang, openAdd, openEdit, saveEvent, removeEvent, addDay, removeLastDay, convertCurrency, openUrl, openRoute, saveToCloud
                 };
             }
         }).mount('#app');
