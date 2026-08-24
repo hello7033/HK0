@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>香港旅遊行程表</title>
+    <title>香港旅遊行程表 - 極簡雙人同步版</title>
 
     <!-- Tailwind CSS & FontAwesome & SortableJS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -133,8 +133,8 @@
                         </div>
                         <div class="text-[10px] font-bold uppercase tracking-tight flex items-center gap-1.5 bg-white/80 px-3 py-1.5 rounded-full border border-yellow-200">
                             <span class="text-slate-500">🔑 暗號: <span class="text-slate-800 font-extrabold">{{ roomDisplay }}</span></span>
-                            <span :class="saving ? 'text-amber-500 animate-pulse' : 'text-emerald-600'">
-                                {{ saving ? '● 同步中...' : '● 即時連線中' }}
+                            <span :class="syncStatusClass">
+                                {{ syncStatusText }}
                             </span>
                         </div>
                     </div>
@@ -277,6 +277,8 @@
                 const showModal = ref(false);
                 const editingId = ref(null);
                 const saving = ref(false);
+                const syncError = ref(false);
+                const lastLocalEdit = ref(Date.now());
                 const connecting = ref(false);
                 const weather = ref(null);
                 
@@ -294,6 +296,46 @@
                 const calc = ref({ hkd: 0, twd: 0 });
                 const rates = ref({ hkd_twd: 4.12 });
 
+                const syncStatusText = computed(() => {
+                    if (syncError.value) return '❌ 同步失敗 (請檢查網路/廣告攔截)';
+                    if (saving.value) return '● 同步中...';
+                    return '● 即時連線中';
+                });
+
+                const syncStatusClass = computed(() => {
+                    if (syncError.value) return 'text-red-500 font-bold animate-pulse';
+                    if (saving.value) return 'text-amber-500 animate-pulse';
+                    return 'text-emerald-600';
+                });
+
+                // 資料精簡化 (降低體積防 4KB 限制)
+                const compressData = () => {
+                    return {
+                        s: myDeviceId,
+                        t: Date.now(),
+                        c: config.value,
+                        e: events.value.map(item => {
+                            const cleaned = {};
+                            for (const k in item) {
+                                if (item[k] !== '' && item[k] !== null && item[k] !== undefined) {
+                                    cleaned[k] = item[k];
+                                }
+                            }
+                            return cleaned;
+                        })
+                    };
+                };
+
+                // 解壓縮恢復資料
+                const decompressData = (payload) => {
+                    return {
+                        senderId: payload.s || payload.senderId,
+                        updatedAt: payload.t || payload.updatedAt || 0,
+                        config: payload.c || payload.config,
+                        events: payload.e || payload.events || []
+                    };
+                };
+
                 // 進入暗號房間並建立廣播連線
                 const joinRoom = async () => {
                     const cleanRoom = roomInput.value.trim().toLowerCase();
@@ -303,10 +345,9 @@
                     roomDisplay.value = cleanRoom;
                     roomKey.value = cleanRoom;
 
-                    // 1. 設定廣播主題名稱
                     const topicName = 'hk_voyage_trip_' + encodeURIComponent(cleanRoom);
 
-                    // 2. 獲取該暗號最近歷史紀錄
+                    // 1. 獲取歷史紀錄
                     try {
                         const historyRes = await fetch(`https://ntfy.sh/${topicName}/json?poll=1`);
                         if (historyRes.ok) {
@@ -316,10 +357,12 @@
                                 try {
                                     const parsedObj = JSON.parse(lines[i]);
                                     if (parsedObj.message) {
-                                        const payload = JSON.parse(parsedObj.message);
+                                        const rawPayload = JSON.parse(parsedObj.message);
+                                        const payload = decompressData(rawPayload);
                                         if (payload && payload.events) {
                                             events.value = payload.events;
                                             if (payload.config) config.value = payload.config;
+                                            lastLocalEdit.value = payload.updatedAt;
                                             break;
                                         }
                                     }
@@ -330,7 +373,7 @@
                         console.warn('History fetch warning:', e);
                     }
 
-                    // 3. 建立即時 SSE 監聽 (即時雙向廣播)
+                    // 2. 建立即時 SSE 監聽
                     if (eventSource) eventSource.close();
                     eventSource = new EventSource(`https://ntfy.sh/${topicName}/sse`);
 
@@ -338,9 +381,9 @@
                         try {
                             const data = JSON.parse(event.data);
                             if (data.event === 'message' && data.message) {
-                                const payload = JSON.parse(data.message);
-                                // 若為其他裝置更新的資料，立即呈現
-                                if (payload.senderId !== myDeviceId) {
+                                const payload = decompressData(JSON.parse(data.message));
+                                // 只有當來自其他裝置，且遠端版本「新於」本地版本時才覆蓋
+                                if (payload.senderId !== myDeviceId && payload.updatedAt >= lastLocalEdit.value) {
                                     if (payload.events) events.value = payload.events;
                                     if (payload.config) {
                                         config.value = payload.config;
@@ -348,6 +391,8 @@
                                             currentDayId.value = config.value.days[0]?.id || 'd1';
                                         }
                                     }
+                                    lastLocalEdit.value = payload.updatedAt;
+                                    syncError.value = false;
                                     saving.value = false;
                                     nextTick(() => initSortable());
                                 }
@@ -369,24 +414,32 @@
                 const saveToCloud = async () => {
                     if (!roomKey.value) return;
                     saving.value = true;
+                    syncError.value = false;
+
+                    const now = Date.now();
+                    lastLocalEdit.value = now;
 
                     const topicName = 'hk_voyage_trip_' + encodeURIComponent(roomKey.value);
-                    const payload = {
-                        senderId: myDeviceId,
-                        events: events.value,
-                        config: config.value,
-                        updatedAt: Date.now()
-                    };
+                    const payload = compressData();
 
                     try {
-                        await fetch(`https://ntfy.sh/${topicName}`, {
+                        const res = await fetch(`https://ntfy.sh/${topicName}`, {
                             method: 'POST',
                             headers: { 'Title': 'Sync', 'Tags': 'arrows_counterclockwise' },
                             body: JSON.stringify(payload)
                         });
-                        setTimeout(() => saving.value = false, 300);
+
+                        if (!res.ok) {
+                            throw new Error(`HTTP ${res.status}`);
+                        }
+
+                        setTimeout(() => {
+                            saving.value = false;
+                            syncError.value = false;
+                        }, 300);
                     } catch (e) {
                         saving.value = false;
+                        syncError.value = true;
                         console.error('PubSub save error:', e);
                     }
                 };
@@ -505,7 +558,7 @@
 
                 return {
                     roomJoined, roomInput, roomDisplay, config, events, filteredEvents, currentDayId, 
-                    showModal, editingId, lang, form, calc, rates, saving, connecting, weather,
+                    showModal, editingId, lang, form, calc, rates, saving, syncError, syncStatusText, syncStatusClass, connecting, weather,
                     joinRoom, toggleLang, openAdd, openEdit, saveEvent, removeEvent, addDay, removeLastDay, convertCurrency, openUrl, openRoute, saveToCloud
                 };
             }
